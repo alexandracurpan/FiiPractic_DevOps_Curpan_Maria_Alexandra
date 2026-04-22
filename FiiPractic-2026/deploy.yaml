@@ -1,0 +1,16 @@
+---
+- name: Deploy Springboot App
+  hosts: all
+  become: true
+  tasks:
+    #- name: Login to GitLab Registry
+    # shell: "docker login -u {{ lookup('env', 'TOKEN_USERNAME') }} -p {{ lookup('env', 'TOKEN_KEY') }} https://gitlab.fiipractic.lan:5050"
+
+    - name: Clean up old container
+      shell: "docker rm -f springboot-app || true"
+
+    - name: Pull the latest image
+      shell: "docker pull gitlab.fiipractic.lan:5050/root/proiect-fii-practic:latest"
+
+    - name: Run the new container
+      shell: "docker run -d --name springboot-app -p 8080:8080 --restart always gitlab.fiipractic.lan:5050/root/proiect-fii-practic:latest"

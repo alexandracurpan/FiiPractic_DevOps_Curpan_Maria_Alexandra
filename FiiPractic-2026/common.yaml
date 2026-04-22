@@ -1,0 +1,86 @@
+---
+- name: Configuration
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Deactivate firewalld
+      service:
+        name: firewalld
+        state: stopped
+        enabled: no
+
+    - name: Disable SELinux
+      selinux:
+        state: disabled
+
+    - name: Set Timezone
+      timezone:
+        name: Europe/Bucharest
+
+    - name: Prohibit Password
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: "PermitRootLogin prohibit-password"
+        state: present
+      notify: Restart SSH
+
+    - name: Add Docker repository
+      yum_repository:
+        name: docker-ce-stable
+        description: Docker CE Stable
+        baseurl: https://download.docker.com/linux/centos/9/$basearch/stable
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        enabled: yes
+
+    - name: Install Docker
+      package:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+
+    - name: Start and enable Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Copy Root CA
+      copy:
+        src: "/usr/share/easy-rsa/3/pki/ca.crt"
+        dest: "/etc/pki/ca-trust/source/anchors/ca.fiipractic.crt"
+        mode: '0644'
+
+    - name: Update CA trust
+      command: update-ca-trust
+
+    - name: Add GitLab Repository Script
+      shell: curl -s https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.rpm.sh | bash
+      when: "'gitlab' in group_names"
+      args:
+        creates: /etc/yum.repos.d/gitlab_gitlab-ce.repo
+
+    - name: Add GitLab Runner Repository Script
+      shell: curl -s https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.rpm.sh | bash
+      when: "'gitlab' in group_names"
+      args:
+        creates: /etc/yum.repos.d/runner_gitlab-runner.repo
+
+    - name: Install GitLab-CE and Runner
+      dnf:
+        name:
+          - gitlab-ce
+          - gitlab-runner
+        state: present
+      when: "'gitlab' in group_names"
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: sshd
+        state: restarted
